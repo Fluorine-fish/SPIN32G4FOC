@@ -42,26 +42,29 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
-file(GLOB_RECURSE USER_LIB
-        "./UserLib/*.c"
-        "./UserLib/*.cpp"
+file(GLOB_RECURSE FOC_LIB
+        "./FOCAlgorithm/src/*.c"
+        "./FOCPeripheral/src/*.c"
 )
 
 file(GLOB_RECURSE APP
-        "FOCApplication/*.c"
-        "FOCApplication/*.cpp"
+        "FOCApplication/src/*.c"
+        "FOCApplication/src/*.cpp"
 )
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ${APP}
+        ${FOC_LIB}
     # Add user sources here
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
-        FOCApplication
+        FOCApplication/inc
+        FOCAlgorithm/inc
+        FOCPeripheral/inc
 )
 
 # Add project symbols (macros)
