@@ -14,15 +14,6 @@
 #include "App_DebugTask.h"
 #include "foc_math.h"
 
-uint16_t duty[3] = {};
-float fAmp = 0.1f; // 旋转矢量的幅值
-float fAngle = 0; // 旋转角度（0～1）
-MATH_3SystF_t tSwTime;
-MATH_3SystF_t fSwDuty;
-MATH_2SystF_t tAlphaBeta;
-int16_t i16Delay = 1;
-float fIncAngel = 0.06f; //递增角度
-
 static void FocInit() {
     HAL_TIM_Base_Start_IT(&htim1);
     HAL_TIM_Base_Start(&htim1);
@@ -52,15 +43,6 @@ void App_DebugTask(void const * argument) {
     FocInit();
 
     while (1) {
-        FOC_DecompAlphaBeta(fAmp, fAngle, &tAlphaBeta);
-        FOC_Svpwm(&tAlphaBeta, &tSwTime, &fSwDuty);
-        TIM1->CCR1 = (uint32_t)(tSwTime.fArg1 * (PWM_PERIOD_CYCLES));
-        TIM1->CCR2 = (uint32_t)(tSwTime.fArg2 * (PWM_PERIOD_CYCLES));
-        TIM1->CCR3 = (uint32_t)(tSwTime.fArg3 * (PWM_PERIOD_CYCLES));
-
-        fAngle += fIncAngel;
-        fAngle = fAngle > 1.f ? 0.f : fAngle;
-
-        osDelay(i16Delay);
+        osDelay(1);
     }
 }
