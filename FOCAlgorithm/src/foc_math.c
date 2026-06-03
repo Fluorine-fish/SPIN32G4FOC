@@ -160,3 +160,24 @@ int16_t FOC_DecompAlphaBeta(float fVecAmp, float fAngel, MATH_2SystF_t* tAlphaBe
 
     return 1;
 }
+
+void FOC_Clarke(const MATH_3SystF_t* const tUvw, MATH_2SystF_t* tAlphaBeta) {
+    tAlphaBeta->fArg1 = tUvw->fArg1; //ia + ib + ic = 0 化简得到
+    tAlphaBeta->fArg2 = (1.f / F_SQRT_3) * (tUvw->fArg2 - tUvw->fArg3);
+}
+
+void FOC_Park(const MATH_2SystF_t* const tAlphaBeta, MATH_2SystF_t* tDq, float fAngel) {
+    float fSin = BM_FastSin(fAngel);
+    float fCos = BM_FastCos(fAngel);
+
+    tDq->fArg1 = tAlphaBeta->fArg1 * fCos + tAlphaBeta->fArg2 * fSin; // d
+    tDq->fArg2 = tAlphaBeta->fArg2 * fCos - tAlphaBeta->fArg1 * fSin; // q
+}
+
+void FOC_InvPark(const MATH_2SystF_t* const tDq, MATH_2SystF_t* tAlphaBeta, float fAngel) {
+    float fSin = BM_FastSin(fAngel);
+    float fCos = BM_FastCos(fAngel);
+
+    tAlphaBeta->fArg1 = tDq->fArg1 *fCos - tDq->fArg2 * fSin;
+    tAlphaBeta->fArg2 = tDq->fArg1 * fSin + tDq->fArg2 * fCos;
+}
