@@ -49,6 +49,12 @@ typedef struct {
     MATH_3SystF_t tSvmDuty;
     /* 作用于SVPWM调制的alpha,beta电压 */
     MATH_2SystF_t tUAlphaBetaReq;
+    /* IdIq电流环控制相关 */
+    FOC_CtrlPIpBR_t tIdCtrl;
+    FOC_CtrlPIpBR_t tIqCtrl;
+    MATH_2SystF_t tIdqErr;
+    MATH_2SystF_t tIdqReq;
+    MATH_2SystF_t tUdqReq; // dq电压输出
 
     /* 状态转移变量*/
     APP_State_Transfer_t tAppState;

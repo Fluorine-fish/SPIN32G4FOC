@@ -12,6 +12,7 @@
 #include "stdint.h"
 
 #define F_SQRT_3 (1.7320508075f)
+#define PI (3.1415926535f)
 
 // 两变量体系结构体
 typedef struct {

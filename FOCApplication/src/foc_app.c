@@ -64,6 +64,27 @@ void APP_DisableOutput(void) {
 
 void APP_InitFocDrvParas(void) {
     tFocDrv.fAmp = 0.1f;
+
+    tFocDrv.tIdCtrl.fInErrK_1 = 0.f;
+    tFocDrv.tIdCtrl.fIntePartK_1 = 0.f;
+    tFocDrv.tIdCtrl.fUpperLimit = tFocParas.fCurUppLimit;
+    tFocDrv.tIdCtrl.fLowerLimit = tFocParas.fCurLowLimit;
+    // 除以ZB以参数标幺化
+    tFocDrv.tIdCtrl.fKpGain = MOTOR_LS * tFocParas.fIdqCutoffFreq * 2 * PI / PU_ZB;
+    tFocDrv.tIdCtrl.fKiGain = MOTOR_RS * tFocParas.fIdqCutoffFreq * 2 * PI * tFocParas.fTs / PU_ZB;
+    tFocDrv.tIdCtrl.fKaGain = 1.f / tFocDrv.tIdCtrl.fKpGain;
+
+    tFocDrv.tIqCtrl.fInErrK_1 = 0.f;
+    tFocDrv.tIqCtrl.fIntePartK_1 = 0.f;
+    tFocDrv.tIqCtrl.fUpperLimit = tFocParas.fCurUppLimit;
+    tFocDrv.tIqCtrl.fLowerLimit = tFocParas.fCurLowLimit;
+    // 除以ZB以参数标幺化
+    tFocDrv.tIqCtrl.fKpGain = MOTOR_LS * tFocParas.fIdqCutoffFreq * 2 * PI / PU_ZB;
+    tFocDrv.tIqCtrl.fKiGain = MOTOR_RS * tFocParas.fIdqCutoffFreq * 2 * PI * tFocParas.fTs / PU_ZB;
+    tFocDrv.tIqCtrl.fKaGain = 1.f / tFocDrv.tIqCtrl.fKpGain;
+
+    tFocDrv.tIdqReq.fArg1 = 0;
+    tFocDrv.tIdqReq.fArg2 = 0.05f;
 }
 
 // 在ADC中断中调用调度器函数
@@ -151,17 +172,33 @@ void StateAlign(void) {
     }
 }
 
+//每一个周期都会运行一次的电流环控制
+void FOC_FastLoop(void) {
+    /* Step3 Clarke Trans */
+    FOC_Clarke(&tFocDrv.tIuvwFbck, &tFocDrv.tAlphaBetaFbck);
+    /* Step5 Park Trans */
+    FOC_Park(&tFocDrv.tAlphaBetaFbck, &tFocDrv.tDqFbck, tFocDrv.fAngle);
+
+    /* Step& Idq Control */
+    tFocDrv.tIdqErr.fArg1 = tFocDrv.tIdqReq.fArg1 - tFocDrv.tDqFbck.fArg1;
+    tFocDrv.tIdqErr.fArg2 = tFocDrv.tIdqReq.fArg2 - tFocDrv.tDqFbck.fArg2;
+    tFocDrv.tUdqReq.fArg1 = FOC_CtrlPIpBR(tFocDrv.tIdqErr.fArg1, &tFocDrv.tIdCtrl);
+    tFocDrv.tUdqReq.fArg2 = FOC_CtrlPIpBR(tFocDrv.tIdqErr.fArg2, &tFocDrv.tIqCtrl);
+
+    /* Step8 InvPark Trans */
+    FOC_InvPark(&tFocDrv.tUdqReq, &tFocDrv.tUAlphaBetaReq, tFocDrv.fAngle);
+    /* Step9 SVPWM*/
+    FOC_Svpwm(&tFocDrv.tUAlphaBetaReq, &tFocDrv.tTimSw, &tFocDrv.tSvmDuty);
+    /* Step10 Timer&PWM*/
+    APP_SetDuty(&tFocDrv.tTimSw);
+}
+
 /* Run Status */
 void StateRun(void) {
     tFocDrv.tAppState.tStatus = S_RUN;
     tFocDrv.tAppState.tEvent = E_RUN;
 
-    FOC_Clarke(&tFocDrv.tIuvwFbck, &tFocDrv.tAlphaBetaFbck);
-    FOC_Park(&tFocDrv.tAlphaBetaFbck, &tFocDrv.tDqFbck, tFocDrv.fAngle);
-
-    FOC_DecompAlphaBeta(tFocDrv.fAmp, tFocDrv.fAngle, &tFocDrv.tUAlphaBetaReq);
-    FOC_Svpwm(&tFocDrv.tUAlphaBetaReq, &tFocDrv.tTimSw, &tFocDrv.tSvmDuty);
-    APP_SetDuty(&tFocDrv.tTimSw);
+    FOC_FastLoop();
 
     // 在ADC中断中延时角度增加
     if (i16DelayCnt >= i16Delay) {

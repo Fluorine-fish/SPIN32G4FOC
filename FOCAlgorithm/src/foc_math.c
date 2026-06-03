@@ -181,3 +181,25 @@ void FOC_InvPark(const MATH_2SystF_t* const tDq, MATH_2SystF_t* tAlphaBeta, floa
     tAlphaBeta->fArg1 = tDq->fArg1 *fCos - tDq->fArg2 * fSin;
     tAlphaBeta->fArg2 = tDq->fArg1 * fSin + tDq->fArg2 * fCos;
 }
+
+float FOC_CtrlPIpBR(float fInErr, FOC_CtrlPIpBR_t* const ptParam) {
+    float fKpPart, fKiPart, fOut, fAntiWindupErr;
+
+    fKpPart = fInErr * ptParam->fKpGain;
+    ptParam->fIntePartK_1 = ptParam->fIntePartK_1 + fInErr;
+    fKiPart = ptParam->fIntePartK_1 * ptParam->fKiGain;
+    fOut = fKiPart + fKpPart;
+
+    // Anti-windup & limitout
+    if (fOut > ptParam->fUpperLimit) {
+        fAntiWindupErr = ptParam->fUpperLimit - fOut;
+        ptParam->fIntePartK_1 += fAntiWindupErr * ptParam->fKaGain;
+        fOut = ptParam->fUpperLimit;
+    } else if (fOut < ptParam->fLowerLimit) {
+        fAntiWindupErr = ptParam->fLowerLimit - fOut;
+        ptParam->fIntePartK_1 += fAntiWindupErr * ptParam->fKaGain;
+        fOut = ptParam->fLowerLimit;
+    }
+
+    return fOut;
+}

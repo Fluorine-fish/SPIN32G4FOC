@@ -11,6 +11,17 @@
 
 #include "base_math.h"
 
+/*  采用并行PI环节后项差分离散的PI控制器 */
+typedef struct {
+    float fKpGain;         // Kp
+    float fKiGain;         // Ki
+    float fKaGain;         // ka
+    float fUpperLimit;     // 上限幅
+    float fLowerLimit;     // 下限幅
+    float fInErrK_1;       // 上次误差
+    float fIntePartK_1; // 累计误差
+} FOC_CtrlPIpBR_t;
+
 /**
  * @brief Foc为输出SVPWM计算占空比
  * @param tAlphaBeta 输入的alpha beta相电压
@@ -54,5 +65,13 @@ void FOC_Park(const MATH_2SystF_t* const tAlphaBeta, MATH_2SystF_t* tDq, float f
  * @param fAngel 电角度(0~1)
  */
 void FOC_InvPark(const MATH_2SystF_t* const tDq, MATH_2SystF_t* tAlphaBeta, float fAngel);
+
+/**
+ * @brief 带抗饱和算法的PI控制器
+ * @param fInErr 输入误差
+ * @param ptParam 控制器结构体
+ * @return 输出结果
+ */
+float FOC_CtrlPIpBR(float fInErr, FOC_CtrlPIpBR_t* const ptParam);
 
 #endif //FOC_SPIING4_TEST_FOC_MATH_C_H
