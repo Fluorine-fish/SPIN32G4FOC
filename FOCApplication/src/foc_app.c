@@ -20,15 +20,16 @@ int16_t i16DelayCnt = 0;
 
 /* 生成去标幺化还原单位的数据 */
 static void DATA_DebugDataGenerate(Data_Debug_t* tData, FOC_Driver_t* tFocDrv) {
-    tData->tIuvwFbck.fArg1 = tFocDrv->tIuvwFbck.fArg1 * 36.67f;
-    tData->tIuvwFbck.fArg2 = tFocDrv->tIuvwFbck.fArg2 * 36.67f;
-    tData->tIuvwFbck.fArg3 = tFocDrv->tIuvwFbck.fArg3 * 36.67f;
+    tData->tIuvwFbck.fArg1 = tFocDrv->tIuvwFbck.fArg1 * PU_IB;
+    tData->tIuvwFbck.fArg2 = tFocDrv->tIuvwFbck.fArg2 * PU_IB;
+    tData->tIuvwFbck.fArg3 = tFocDrv->tIuvwFbck.fArg3 * PU_IB;
 
-    tData->tDqFbck.fArg1 = tFocDrv->tDqFbck.fArg1 * 36.67f;
-    tData->tDqFbck.fArg2 = tFocDrv->tDqFbck.fArg2 * 36.67f;
+    tData->tDqFbck.fArg1 = tFocDrv->tDqFbck.fArg1 * PU_IB;
+    tData->tDqFbck.fArg2 = tFocDrv->tDqFbck.fArg2 * PU_IB;
 
-    tData->tAlphaBetaFbck.fArg1 = tFocDrv->tAlphaBetaFbck.fArg1 * 36.67f;
-    tData->tAlphaBetaFbck.fArg2 = tFocDrv->tAlphaBetaFbck.fArg2 * 36.67f;
+    tData->tAlphaBetaFbck.fArg1 = tFocDrv->tAlphaBetaFbck.fArg1 * PU_IB;
+    tData->tAlphaBetaFbck.fArg2 = tFocDrv->tAlphaBetaFbck.fArg2 * PU_IB;
+    tData->fDcBusVoltage = tFocDrv->fDcBusVoltageFbck * PU_UB * F_SQRT_3;
 }
 
 void APP_CurrentRestruct(void) {
@@ -45,6 +46,8 @@ void APP_CurrentRestruct(void) {
     tFocDrv.tIuvwFbck.fArg1 = -(float)(tFocDrv.pi16RawADC[0] - tFocDrv.i16ADC1offset) / 2048.0f; // u phase current
     tFocDrv.tIuvwFbck.fArg2 = -(float)(tFocDrv.pi16RawADC[1] - tFocDrv.i16ADC2offset) / 2048.0f; // v phase current
     tFocDrv.tIuvwFbck.fArg3 = -(tFocDrv.tIuvwFbck.fArg1 + tFocDrv.tIuvwFbck.fArg2);              // w phase current
+
+    tFocDrv.fDcBusVoltageFbck = (float)tFocDrv.pi16RawADC[3] / 4096.f;
 
     DATA_DebugDataGenerate(&tDebugData, &tFocDrv);
 }
@@ -85,6 +88,11 @@ void APP_InitFocDrvParas(void) {
 
     tFocDrv.tIdqReq.fArg1 = 0;
     tFocDrv.tIdqReq.fArg2 = 0.05f;
+
+    tFocDrv.fAlignVoltage = tFocParas.fAlignVoltage;
+    tFocDrv.u32AlignCnt = 0;
+    tFocDrv.u32AlignTime = tFocParas.u32AlignTime;
+    tFocDrv.u8AlignFlag = 0;
 }
 
 // 在ADC中断中调用调度器函数
@@ -166,7 +174,43 @@ void StateAlign(void) {
     tFocDrv.tAppState.tStatus = S_ALIGN;
     tFocDrv.tAppState.tEvent = E_ALIGN;
 
-    i16FnStatus = 1;
+    if (tFocDrv.u32AlignCnt < tFocDrv.u32AlignTime) {
+        if (tFocDrv.u8AlignFlag == 0) {
+            /* d轴体电压对齐 */
+            tFocDrv.tUdqReq.fArg1 = tFocDrv.fAlignVoltage;
+            tFocDrv.tUdqReq.fArg2 = 0;
+        }else {
+            /* q轴体电压对齐 */
+            tFocDrv.tUdqReq.fArg1 = 0;
+            tFocDrv.tUdqReq.fArg2 = tFocDrv.fAlignVoltage;
+        }
+
+        /* Step8 InvPark Trans */
+        FOC_InvPark(&tFocDrv.tUdqReq, &tFocDrv.tUAlphaBetaReq, tFocDrv.fAngle);
+
+        /* DcBusVoltage Comp */
+        FOC_DcbusComp(tFocDrv.fDcBusVoltageFbck, &tFocDrv.tUAlphaBetaReq, &tFocDrv.tUAlphaBetaCompReq);
+        /* Step9 SVPWM*/
+        FOC_Svpwm(&tFocDrv.tUAlphaBetaCompReq, &tFocDrv.tTimSw, &tFocDrv.tSvmDuty);
+        /* Step10 Timer&PWM*/
+        APP_SetDuty(&tFocDrv.tTimSw);
+
+        tFocDrv.u32AlignCnt++;
+    }else {
+        switch (tFocDrv.u8AlignFlag) {
+            default: case 0:
+                tFocDrv.u8AlignFlag = 1;
+                tFocDrv.u32AlignCnt = 0;
+                break;
+            case 1:
+                tFocDrv.u8AlignFlag = 2;
+                tFocDrv.u32AlignCnt = 0;
+                break;
+            case 2:
+                i16FnStatus = 1;
+        }
+    }
+
     if (i16FnStatus) {
         tFocDrv.tAppState.tEvent = E_ALIGN_DONE;
     }
@@ -179,16 +223,30 @@ void FOC_FastLoop(void) {
     /* Step5 Park Trans */
     FOC_Park(&tFocDrv.tAlphaBetaFbck, &tFocDrv.tDqFbck, tFocDrv.fAngle);
 
-    /* Step& Idq Control */
+    /* Id VectorCircle Limitation */
+    tFocDrv.tIdCtrl.fUpperLimit = tFocParas.fCurUppLimit * tFocDrv.fDcBusVoltageFbck;
+    tFocDrv.tIdCtrl.fLowerLimit = tFocParas.fCurLowLimit * tFocDrv.fDcBusVoltageFbck;
+
+    /* Step7 Id Control */
     tFocDrv.tIdqErr.fArg1 = tFocDrv.tIdqReq.fArg1 - tFocDrv.tDqFbck.fArg1;
     tFocDrv.tIdqErr.fArg2 = tFocDrv.tIdqReq.fArg2 - tFocDrv.tDqFbck.fArg2;
+
+    /* Iq VectorCircle Limitation */
+    tFocDrv.tIqCtrl.fUpperLimit = BM_FastSqrt(tFocDrv.tIdCtrl.fUpperLimit * tFocDrv.tIdCtrl.fUpperLimit
+            - tFocDrv.tUdqReq.fArg1 * tFocDrv.tUdqReq.fArg1);
+    tFocDrv.tIqCtrl.fLowerLimit = - tFocDrv.tIqCtrl.fUpperLimit;
+
+    /* Step7 Iq Control */
     tFocDrv.tUdqReq.fArg1 = FOC_CtrlPIpBR(tFocDrv.tIdqErr.fArg1, &tFocDrv.tIdCtrl);
     tFocDrv.tUdqReq.fArg2 = FOC_CtrlPIpBR(tFocDrv.tIdqErr.fArg2, &tFocDrv.tIqCtrl);
 
     /* Step8 InvPark Trans */
     FOC_InvPark(&tFocDrv.tUdqReq, &tFocDrv.tUAlphaBetaReq, tFocDrv.fAngle);
+
+    /* DcBusVoltage Comp */
+    FOC_DcbusComp(tFocDrv.fDcBusVoltageFbck, &tFocDrv.tUAlphaBetaReq, &tFocDrv.tUAlphaBetaCompReq);
     /* Step9 SVPWM*/
-    FOC_Svpwm(&tFocDrv.tUAlphaBetaReq, &tFocDrv.tTimSw, &tFocDrv.tSvmDuty);
+    FOC_Svpwm(&tFocDrv.tUAlphaBetaCompReq, &tFocDrv.tTimSw, &tFocDrv.tSvmDuty);
     /* Step10 Timer&PWM*/
     APP_SetDuty(&tFocDrv.tTimSw);
 }

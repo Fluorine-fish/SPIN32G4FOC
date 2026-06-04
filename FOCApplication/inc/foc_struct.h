@@ -22,6 +22,7 @@ typedef struct {
     MATH_3SystF_t tIuvwFbck;
     MATH_2SystF_t tAlphaBetaFbck;
     MATH_2SystF_t tDqFbck;
+    float fDcBusVoltage;
 } Data_Debug_t;
 
 typedef struct {
@@ -39,6 +40,13 @@ typedef struct {
     int32_t i32ClibAdc1;
     /* 校准过程中adc2采样数据的总和，最后除以校准次数，采用平均法保证校准精度 */
     int32_t i32ClibAdc2;
+    /* 对齐相关变量 */
+    float fAlignVoltage;
+    uint32_t u32AlignTime;
+    uint32_t u32AlignCnt;
+    uint8_t  u8AlignFlag;
+    /* 反馈的实际母线电压 */
+    float fDcBusVoltageFbck;
     /* 经过电流重构后的的实际电流 */
     MATH_3SystF_t tIuvwFbck;
     MATH_2SystF_t tAlphaBetaFbck;
@@ -49,6 +57,7 @@ typedef struct {
     MATH_3SystF_t tSvmDuty;
     /* 作用于SVPWM调制的alpha,beta电压 */
     MATH_2SystF_t tUAlphaBetaReq;
+    MATH_2SystF_t tUAlphaBetaCompReq;
     /* IdIq电流环控制相关 */
     FOC_CtrlPIpBR_t tIdCtrl;
     FOC_CtrlPIpBR_t tIqCtrl;

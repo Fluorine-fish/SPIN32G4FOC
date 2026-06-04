@@ -74,4 +74,12 @@ void FOC_InvPark(const MATH_2SystF_t* const tDq, MATH_2SystF_t* tAlphaBeta, floa
  */
 float FOC_CtrlPIpBR(float fInErr, FOC_CtrlPIpBR_t* const ptParam);
 
+/**
+ * @brief 母线电压补偿
+ * @param fDcbusActual 母线电压实际值(0~1)
+ * @param tUAlphaBeta 输入InvPark后的电压
+ * @param tUAlphaBetaComp 输出补偿后
+ */
+void FOC_DcbusComp(float fDcbusActual, MATH_2SystF_t* tUAlphaBeta, MATH_2SystF_t* tUAlphaBetaComp);
+
 #endif //FOC_SPIING4_TEST_FOC_MATH_C_H

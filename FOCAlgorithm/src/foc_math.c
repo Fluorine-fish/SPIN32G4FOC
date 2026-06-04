@@ -203,3 +203,8 @@ float FOC_CtrlPIpBR(float fInErr, FOC_CtrlPIpBR_t* const ptParam) {
 
     return fOut;
 }
+
+void FOC_DcbusComp(float fDcbusActual, MATH_2SystF_t* tUAlphaBeta, MATH_2SystF_t* tUAlphaBetaComp) {
+    tUAlphaBetaComp->fArg1 = (1.f / fDcbusActual) * tUAlphaBeta->fArg1;
+    tUAlphaBetaComp->fArg2 = (1.f / fDcbusActual) * tUAlphaBeta->fArg2;
+}

@@ -83,3 +83,19 @@ float BM_FastCos(float fAngle)
     }
     return (sig > 0) ? -sin: sin;
 }
+
+float BM_FastSqrt(float fInput)
+{
+    long i;
+    float x, y;
+    const float f = 1.5F;
+
+    x = fInput * 0.5F;
+    y = fInput;
+    i = * ( long * ) &y;
+    i = 0x5f3759df - ( i >> 1 );
+    y = * ( float * ) &i;
+    y = y * ( f - ( x * y * y ) );
+    y = y * ( f - ( x * y * y ) );
+    return fInput * y;
+}

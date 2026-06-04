@@ -29,5 +29,6 @@ typedef struct {
 
 float BM_FastSin(float fAngle);
 float BM_FastCos(float fAngle);
+float BM_FastSqrt(float fInput);
 
 #endif //FOC_SPIING4_TEST_BASE_MATH_H

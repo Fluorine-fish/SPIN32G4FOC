@@ -16,4 +16,7 @@ FOC_paras_t tFocParas = {
     .fCurUppLimit = 0.5f,
     .fCurLowLimit = -0.5f,
     .fIdqCutoffFreq = 200,
+
+    .fAlignVoltage = 0.05f, // 0.05的相电压
+    .u32AlignTime = 10000,  // 对齐2s
 };

@@ -17,7 +17,7 @@
 #define MOTOR_TS (0.000050f)   // PWM控制周期
 
 /* 标幺化参考值 */
-#define PU_UB (12.0f / F_SQRT_3) // 供电电压标幺化
+#define PU_UB (36.333333f / F_SQRT_3) // 供电电压标幺化
 #define PU_IB (36.666667f)
 #define PU_FB (200.0f)
 #define PU_OMEGA (PU_FB * 2.f * PI)
@@ -31,6 +31,8 @@ typedef struct {
     float fCurUppLimit;
     float fCurLowLimit;
     float fIdqCutoffFreq; // 电流环控制截止频率
+    float fAlignVoltage; // 对齐电压
+    uint32_t u32AlignTime; // 对齐时间
 }FOC_paras_t;
 
 extern FOC_paras_t tFocParas;
