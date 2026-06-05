@@ -257,9 +257,9 @@ void FOC_SlowLoop(void) {
     tFocDrv.tIdqReq.fArg1 = 0; // Id = 0控制
 
     /* Position Loop */
-    tFocDrv.tPospeCtrl.fWRotElReq = FOC_CtrlPIpBR(tFocDrv.tSns.fTargetMultiTurnPos-tFocDrv.tSns.fSnsMultiTurnThetaMch,
-        &tFocDrv.tSns.tPosCtrl);
-    // tFocDrv.tPospeCtrl.fWRotElReq = 0.5f;
+    // tFocDrv.tPospeCtrl.fWRotElReq = FOC_CtrlPIpBR(tFocDrv.tSns.fTargetMultiTurnPos-tFocDrv.tSns.fSnsMultiTurnThetaMch,
+    //     &tFocDrv.tSns.tPosCtrl);
+    tFocDrv.tPospeCtrl.fWRotElReq = 0.05f;
 
     /* Senor Speed */
     SNS_MchSpeedCalc(&tFocDrv.tSns);
