@@ -8,6 +8,9 @@
 */
 #include "foc_app.h"
 
+#define OPEN_LOOP
+#define SENSER_CTRL
+
 float fIncAngel = 0.01f; //递增角度 (0~1)
 FOC_Driver_t tFocDrv = {
     .tAppState.tStatus = S_RESET,
@@ -68,6 +71,7 @@ void APP_DisableOutput(void) {
 void APP_InitFocDrvParas(void) {
     tFocDrv.fAmp = 0.1f;
 
+    /* IdCtrl Init */
     tFocDrv.tIdCtrl.fInErrK_1 = 0.f;
     tFocDrv.tIdCtrl.fIntePartK_1 = 0.f;
     tFocDrv.tIdCtrl.fUpperLimit = tFocParas.fCurUppLimit;
@@ -77,6 +81,7 @@ void APP_InitFocDrvParas(void) {
     tFocDrv.tIdCtrl.fKiGain = MOTOR_RS * tFocParas.fIdqCutoffFreq * 2 * PI * tFocParas.fTs / PU_ZB;
     tFocDrv.tIdCtrl.fKaGain = 1.f / tFocDrv.tIdCtrl.fKpGain;
 
+    /* IqCtrl Init */
     tFocDrv.tIqCtrl.fInErrK_1 = 0.f;
     tFocDrv.tIqCtrl.fIntePartK_1 = 0.f;
     tFocDrv.tIqCtrl.fUpperLimit = tFocParas.fCurUppLimit;
@@ -87,17 +92,45 @@ void APP_InitFocDrvParas(void) {
     tFocDrv.tIqCtrl.fKaGain = 1.f / tFocDrv.tIqCtrl.fKpGain;
 
     tFocDrv.tIdqReq.fArg1 = 0;
-    tFocDrv.tIdqReq.fArg2 = 0.05f;
+    tFocDrv.tIdqReq.fArg2 = 0;
 
+    /* Align Init */
     tFocDrv.fAlignVoltage = tFocParas.fAlignVoltage;
     tFocDrv.u32AlignCnt = 0;
     tFocDrv.u32AlignTime = tFocParas.u32AlignTime;
     tFocDrv.u8AlignFlag = 0;
+
+    /* SpeedCtrl Init */
+    tFocDrv.tSpeedCtrl.fKpGain = tFocParas.fSpeedKp;
+    tFocDrv.tSpeedCtrl.fKiGain = tFocParas.fSpeedKi;
+    tFocDrv.tSpeedCtrl.fKaGain = (1.f) / tFocParas.fSpeedKp;
+    tFocDrv.tSpeedCtrl.fInErrK_1 = 0.f;
+    tFocDrv.tSpeedCtrl.fIntePartK_1 = 0.f;
+    tFocDrv.tSpeedCtrl.fUpperLimit = tFocParas.fCurUppLimit;
+    tFocDrv.tSpeedCtrl.fLowerLimit = tFocParas.fCurLowLimit;
+
+    /* Init SpeedLoop */
+    tFocDrv.u16SpeedCtrlPeriod = tFocParas.u16SpeedLoopPeriod;
+    tFocDrv.u16SpeedCtrlCnt = 0;
+    tFocDrv.tPospeOpenLoop.fOLThetaInte.fTs = tFocParas.fTs;
+    tFocDrv.tPospeOpenLoop.fOLThetaInte.fInte = 0;
+    tFocDrv.tPospeOpenLoop.fIqLowerLimit = tFocParas.fSpeedOLLowerLimit;
+    tFocDrv.tPospeOpenLoop.fIqUpperLimit = tFocParas.fSpeedOLUpperLimit;
+
+    /* Init Ramp */
+    tFocDrv.tSpeedRamp.fRampUp = tFocParas.fSpeedUp;
+    tFocDrv.tSpeedRamp.fRampDown = tFocParas.fSpeedDown;
+    tFocDrv.tSpeedRamp.fState = 0;
+
+    tFocDrv.tPospeCtrl.fWRotElReq = 0;
 }
 
 // 在ADC中断中调用调度器函数
 void APP_FocScheduler(void) {
     APP_CurrentRestruct();
+
+    /* SPI磁编码器数据读取 */
+    tFocDrv.tSns.u16SnsRawTheta = MT6701_GetAngle();
 
     pStateFuncTable[tFocDrv.tAppState.tEvent][tFocDrv.tAppState.tStatus]();
 }
@@ -201,12 +234,15 @@ void StateAlign(void) {
             default: case 0:
                 tFocDrv.u8AlignFlag = 1;
                 tFocDrv.u32AlignCnt = 0;
+                /* theta_r offset */
+                tFocDrv.tSns.u16InitTheta = tFocDrv.tSns.u16SnsRawTheta;
                 break;
             case 1:
                 tFocDrv.u8AlignFlag = 2;
                 tFocDrv.u32AlignCnt = 0;
                 break;
             case 2:
+                SNS_Init(&tFocDrv.tSns);
                 i16FnStatus = 1;
         }
     }
@@ -216,12 +252,30 @@ void StateAlign(void) {
     }
 }
 
-//每一个周期都会运行一次的电流环控制
+// 速度环相较于电流环运行更慢（5KHz）
+void FOC_SlowLoop(void) {
+    tFocDrv.tIdqReq.fArg1 = 0; // Id = 0控制
+
+    /* Position Loop */
+    tFocDrv.tPospeCtrl.fWRotElReq = FOC_CtrlPIpBR(tFocDrv.tSns.fTargetMultiTurnPos-tFocDrv.tSns.fSnsMultiTurnThetaMch,
+        &tFocDrv.tSns.tPosCtrl);
+    // tFocDrv.tPospeCtrl.fWRotElReq = 0.5f;
+
+    /* Senor Speed */
+    SNS_MchSpeedCalc(&tFocDrv.tSns);
+
+    /* Speed Loop */
+    tFocDrv.tPospeCtrl.fWRotElReqRamp = FOC_Ramp(tFocDrv.tPospeCtrl.fWRotElReq, &tFocDrv.tSpeedRamp);
+    tFocDrv.tPospeCtrl.fWRotElErr = tFocDrv.tPospeCtrl.fWRotElReqRamp - tFocDrv.tPospeCtrl.fWRotEl;
+    tFocDrv.tIdqReq.fArg2 = FOC_CtrlPIpBR(tFocDrv.tPospeCtrl.fWRotElErr, &tFocDrv.tSpeedCtrl);
+}
+
+// 每一个周期都会运行一次的电流环控制（20KHz）
 void FOC_FastLoop(void) {
     /* Step3 Clarke Trans */
     FOC_Clarke(&tFocDrv.tIuvwFbck, &tFocDrv.tAlphaBetaFbck);
     /* Step5 Park Trans */
-    FOC_Park(&tFocDrv.tAlphaBetaFbck, &tFocDrv.tDqFbck, tFocDrv.fAngle);
+    FOC_Park(&tFocDrv.tAlphaBetaFbck, &tFocDrv.tDqFbck, tFocDrv.tPospeCtrl.fThetaRotEl);
 
     /* Id VectorCircle Limitation */
     tFocDrv.tIdCtrl.fUpperLimit = tFocParas.fCurUppLimit * tFocDrv.fDcBusVoltageFbck;
@@ -241,7 +295,7 @@ void FOC_FastLoop(void) {
     tFocDrv.tUdqReq.fArg2 = FOC_CtrlPIpBR(tFocDrv.tIdqErr.fArg2, &tFocDrv.tIqCtrl);
 
     /* Step8 InvPark Trans */
-    FOC_InvPark(&tFocDrv.tUdqReq, &tFocDrv.tUAlphaBetaReq, tFocDrv.fAngle);
+    FOC_InvPark(&tFocDrv.tUdqReq, &tFocDrv.tUAlphaBetaReq, tFocDrv.tPospeCtrl.fThetaRotEl);
 
     /* DcBusVoltage Comp */
     FOC_DcbusComp(tFocDrv.fDcBusVoltageFbck, &tFocDrv.tUAlphaBetaReq, &tFocDrv.tUAlphaBetaCompReq);
@@ -252,20 +306,41 @@ void FOC_FastLoop(void) {
 }
 
 /* Run Status */
+float fTempAngle;
+int32_t i32Angle;
 void StateRun(void) {
     tFocDrv.tAppState.tStatus = S_RUN;
     tFocDrv.tAppState.tEvent = E_RUN;
 
+    /* OpenLoop */
+    // fTempAngle = FOC_Integrate(tFocDrv.tPospeCtrl.fWRotElReqRamp * PU_FB, &tFocDrv.tPospeOpenLoop.fOLThetaInte);
+    // i32Angle = (int32_t)fTempAngle;
+    // tFocDrv.tPospeOpenLoop.fOLThetaInte.fInte -= i32Angle; // 防止积分溢出
+    // tFocDrv.tPospeOpenLoop.fThetaRotEl = fTempAngle - i32Angle;
+    //
+    // // 开环状态下的当前速度由积分得到, 将状态量注入控制器
+    // tFocDrv.tPospeCtrl.fThetaRotEl = tFocDrv.tPospeOpenLoop.fThetaRotEl;
+    // tFocDrv.tPospeCtrl.fWRotEl = 0.f;
+    // tFocDrv.tSpeedCtrl.fUpperLimit = tFocParas.fSpeedOLUpperLimit;
+    // tFocDrv.tSpeedCtrl.fLowerLimit = tFocParas.fSpeedOLLowerLimit;
+
+    /* SensorCtrl */
+    SNS_Mch2ElAngle(&tFocDrv.tSns);
+    tFocDrv.tPospeCtrl.fThetaRotEl = tFocDrv.tSns.fThetaEl;
+    tFocDrv.tPospeCtrl.fWRotEl = tFocDrv.tSns.fWRotEl;
+    tFocDrv.tSpeedCtrl.fUpperLimit = tFocParas.fSpeedUpperLimit;
+    tFocDrv.tSpeedCtrl.fLowerLimit = tFocParas.fSpeedLowerLimit;
+
+    /* Speed Loop */
+    if (tFocDrv.u16SpeedCtrlCnt >= tFocDrv.u16SpeedCtrlPeriod) {
+        FOC_SlowLoop();
+        tFocDrv.u16SpeedCtrlCnt = 0;
+    }
+    tFocDrv.u16SpeedCtrlCnt ++;
+
+    /* Current Loop */
     FOC_FastLoop();
 
-    // 在ADC中断中延时角度增加
-    if (i16DelayCnt >= i16Delay) {
-        tFocDrv.fAngle += fIncAngel;
-        tFocDrv.fAngle = tFocDrv.fAngle > 1.f ? 0.f : tFocDrv.fAngle;
-
-        i16DelayCnt = 0;
-    }
-    i16DelayCnt++;
 }
 
 void StateReset(void) {

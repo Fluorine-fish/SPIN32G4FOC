@@ -6,18 +6,15 @@
 *   @version 1.0
 *   @note
 */
-#include "adc.h"
 #include "cmsis_os.h"
-#include "opamp.h"
-#include "tim.h"
-
+#include "mt6701_driver.h"
 #include "App_DebugTask.h"
-#include "foc_math.h"
-
+uint16_t u16SensorRaw = 0;
 
 void App_DebugTask(void const * argument) {
 
     while (1) {
+
         osDelay(1);
     }
 }

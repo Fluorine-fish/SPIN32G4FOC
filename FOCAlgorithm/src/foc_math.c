@@ -208,3 +208,20 @@ void FOC_DcbusComp(float fDcbusActual, MATH_2SystF_t* tUAlphaBeta, MATH_2SystF_t
     tUAlphaBetaComp->fArg1 = (1.f / fDcbusActual) * tUAlphaBeta->fArg1;
     tUAlphaBetaComp->fArg2 = (1.f / fDcbusActual) * tUAlphaBeta->fArg2;
 }
+
+float FOC_Ramp(float fIn, FOC_Ramp_t* const ptRamp) {
+    if (fIn > 0) {
+        if (ptRamp->fState < fIn - ptRamp->fRampUp) ptRamp->fState += ptRamp->fRampUp;
+        if (ptRamp->fState > fIn + ptRamp->fRampDown) ptRamp->fState -= ptRamp->fRampDown;
+    }else if (fIn < 0) {
+        if (ptRamp->fState > fIn + ptRamp->fRampUp) ptRamp->fState -= ptRamp->fRampUp;
+        if (ptRamp->fState < fIn - ptRamp->fRampDown) ptRamp->fState += ptRamp->fRampDown;
+    }
+
+    return ptRamp->fState;
+}
+
+float FOC_Integrate(float fIn, FOC_Integral_t* const ptInte) {
+    ptInte->fInte += ptInte->fTs * fIn;
+    return ptInte->fInte;
+}

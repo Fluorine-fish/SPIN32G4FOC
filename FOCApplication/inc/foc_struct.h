@@ -14,6 +14,7 @@
 #include "base_math.h"
 #include "foc_math.h"
 #include "state_machine.h"
+#include "sensor_control.h"
 #include "tim.h"
 #include "adc.h"
 #include "cmsis_os.h"
@@ -24,6 +25,25 @@ typedef struct {
     MATH_2SystF_t tDqFbck;
     float fDcBusVoltage;
 } Data_Debug_t;
+
+typedef struct
+{
+    float fThetaRotEl; // electrical theta
+    float fWRotEl;    // electrical speed omega
+    float fWRotElReq;  // required electrical speed omega
+    float fWRotElReqRamp; // ramped speed omega
+    float fWRotElErr; // the error of between real speed and required speed
+}FOC_PospeCtrl_t;
+
+typedef struct
+{
+    float fThetaRotEl;  // open loop theta
+    float fWRotEl;      // open loop speed
+    float fIqUpperLimit;  // open loop Iq current upper limit
+    float fIqLowerLimit;  // open loop Iq current lower limit
+    FOC_Integral_t fOLThetaInte; // integral: speed -> theta
+}FOC_OpenLoop_t;
+
 
 typedef struct {
     /* adc采集的原始值，其相关索引保存的数据关系为：
@@ -64,6 +84,15 @@ typedef struct {
     MATH_2SystF_t tIdqErr;
     MATH_2SystF_t tIdqReq;
     MATH_2SystF_t tUdqReq; // dq电压输出
+
+    FOC_PospeCtrl_t tPospeCtrl;
+    FOC_OpenLoop_t tPospeOpenLoop;
+    uint16_t u16SpeedCtrlPeriod; // 速度控制器周期
+    uint16_t u16SpeedCtrlCnt;
+    FOC_Ramp_t tSpeedRamp;
+    FOC_CtrlPIpBR_t tSpeedCtrl;
+    /* sensor ctrl */
+    Sensor_t tSns;
 
     /* 状态转移变量*/
     APP_State_Transfer_t tAppState;

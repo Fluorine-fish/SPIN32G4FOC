@@ -33,6 +33,16 @@ typedef struct {
     float fIdqCutoffFreq; // 电流环控制截止频率
     float fAlignVoltage; // 对齐电压
     uint32_t u32AlignTime; // 对齐时间
+
+    uint16_t u16SpeedLoopPeriod;
+    float fSpeedUp;
+    float fSpeedDown;
+    float fSpeedKp;
+    float fSpeedKi;
+    float fSpeedUpperLimit;  // 闭环限幅
+    float fSpeedLowerLimit;  // 闭环限幅
+    float fSpeedOLUpperLimit;  // 开环限幅
+    float fSpeedOLLowerLimit;  // 开环限幅
 }FOC_paras_t;
 
 extern FOC_paras_t tFocParas;
